@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Water Shader</title>
+	<style type="text/css">
+		body {
+			margin: 0px;
+		}
+	</style>
+</head>
+<body>
+<script type="fragshader" id="shader">
+precision mediump float;//Define the precision
+
+//We pass in a time variable
+uniform float     time;
+//The image we passed in
+uniform sampler2D iChannel0;
+uniform sampler2D iChannel1;//The mask
+uniform vec2      resolution;//This is set with phaser's setResolution function
+
+float waveSize = 5.0;
+float amplitude = 0.02;
+
+void main( void ) {
+
+	vec2 uv = gl_FragCoord.xy / resolution.xy;
+	uv.y = 1.0-uv.y;//Flip image vertically
+
+	vec4 maskColor = texture2D(iChannel1, uv);
+  	float waterPower = 1.0 - (maskColor.r * maskColor.g * maskColor.b);
+
+	float X = uv.x * waveSize+time;
+  	float Y = uv.y * waveSize+time;
+	
+  	float Xoffset = cos(X-Y)*amplitude*cos(Y);
+  	float Yoffset = sin(X+Y)*amplitude*sin(Y);
+  
+ 	
+	uv.x += Xoffset* waterPower;
+	uv.y += Yoffset * waterPower;
+	gl_FragColor =  texture2D(iChannel0, uv);
+	gl_FragColor.b *= (waterPower +1.0);
+  
+  
+	
+ }
+</script>
+<script src="https://cdn.jsdelivr.net/phaser/2.6.2/phaser.min.js"></script>
+<script type="text/javascript">
+	window.onload = function() {
+        //This initializes Phaser
+        var WINDOW_WIDTH = '100';//At 100% of the screen
+        var WINDOW_HEIGHT = '100';//Remove the quotes to use pixels instead of percentage
+        var game = new Phaser.Game(WINDOW_WIDTH, WINDOW_HEIGHT, Phaser.AUTO, '', { preload: preload, create: create,update:GameLoop });
+        var gameImage;
+        var maskImage;
+        var uniforms;
+        function preload () {
+            //Here is where you would load all your images and assets
+            game.load.crossOrigin = "Anonymous";//Load an image from a different domain
+            game.load.image('screenshot', 'https://raw.githubusercontent.com/OmarShehata/Using-Displacement-Shaders-to-Create-an-Underwater-Effect/master/assets/game_screenshot.png');
+            game.load.image('mask','https://raw.githubusercontent.com/OmarShehata/Using-Displacement-Shaders-to-Create-an-Underwater-Effect/master/assets/mask.png')
+        }
+        function create () {
+            //This function runs on creation of the game window
+            gameImage = game.add.sprite(game.world.centerX, game.world.centerY, 'screenshot');
+            gameImage.anchor.setTo(0.5, 0.5);//This means the center of the sprite is its center, rather than its top left
+            maskImage = game.add.sprite(0,0,'mask'); maskImage.visible=false;
+          //Fit image on screen
+            gameImage.scale.x = window.innerHeight/gameImage.height;
+            gameImage.scale.y = gameImage.scale.x;
+          
+            
+            //Get shader code
+            var shaderCode = document.querySelector("#shader").innerHTML
+            uniforms = {
+              time: {type:'1f',value:0},
+              iChannel0 :{type:'sampler2D',value:gameImage.texture},
+              iChannel1 :{type:'sampler2D',value:maskImage.texture}
+            }
+            
+            filter = new Phaser.Filter(game, uniforms, shaderCode);//Create phaser filter
+            var width = window.innerHeight * (gameImage.width/gameImage.height)
+            filter.setResolution(window.innerWidth,window.innerHeight)
+            //Apply filter to our object
+            gameImage.filters = [ filter ];
+        }
+  
+        function GameLoop(){
+            uniforms.time.value +=0.02;
+        }
+      
+    };
+
+
+</script>
+</body>
+</html>
